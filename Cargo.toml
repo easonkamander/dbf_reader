@@ -11,7 +11,7 @@ license = "Apache-2.0"
 
 homepage = "https://github.com/easonkamander/dbf_reader"
 repository = "https://github.com/easonkamander/dbf_reader"
-documentation = "https://github.com/easonkamander/dbf_reader"
+documentation = "https://docs.rs/dbf_reader"
 
 keywords = ["dbf", "serde", "dbase", "parser"]
 categories = ["encoding", "parser-implementations"]
