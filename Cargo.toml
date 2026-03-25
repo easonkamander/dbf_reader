@@ -3,6 +3,20 @@ name = "dbf_reader"
 version = "0.1.0"
 edition = "2024"
 
+authors = ["Eason Kamander <eason@kamander.com>"]
+description = "A streaming parser for .dbf files"
+
+readme = "README.md"
+license = "Apache-2.0"
+license-file = "LICENSE"
+
+homepage = "https://github.com/easonkamander/dbf_reader"
+repository = "https://github.com/easonkamander/dbf_reader"
+documentation = "https://github.com/easonkamander/dbf_reader"
+
+keywords = ["dbf", "serde", "dbase", "parser"]
+categories = ["encoding", "parser-implementations"]
+
 [dependencies]
 serde = "1.0"
 chrono = "0.4"
