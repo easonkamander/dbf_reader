@@ -20,26 +20,32 @@ impl<'h, In, De> RecordIter<'h, In, De> {
     }
 }
 
-impl<'h, 'r, In, D> IterLend<'r> for RecordIter<'h, In, D>
+impl<'h, 'r, In, De> IterLend<'r> for RecordIter<'h, In, De>
 where
     In: IterLend<'r, Item = &'r [u8]>,
+    De: de::Deserialize<'r>,
 {
-    type Item = Record<'h, 'r>;
+    type Item = De;
 
     fn next(&'r mut self) -> Result<Option<Self::Item>> {
-        let item = self.iter.next();
-        item.map(|opt| opt.map(|rec| Record::new(self.head, rec)))
+        if let Some(item) = self.iter.next()? {
+            let record = Record::new(self.head, item);
+            let custom = De::deserialize(record)?;
+            Ok(Some(custom))
+        } else {
+            Ok(None)
+        }
     }
 }
 
-impl<'h, 'r, In, D: de::DeserializeOwned> Iterator for RecordIter<'h, In, D>
+impl<'h, In, De> Iterator for RecordIter<'h, In, De>
 where
-    In: for<'t> IterLend<'t, Item = &'t [u8]>,
+    In: for<'r> IterLend<'r, Item = &'r [u8]>,
+    De: de::DeserializeOwned,
 {
-    type Item = Result<D>;
+    type Item = Result<De>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let item = IterLend::next(self).transpose();
-        item.map(|res| res.and_then(D::deserialize))
+        IterLend::next(self).transpose()
     }
 }
