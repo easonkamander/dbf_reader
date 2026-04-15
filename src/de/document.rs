@@ -50,13 +50,21 @@ impl<File: Read> Document<File> {
             record_count,
         })
     }
+
+    pub fn finish(mut self) -> Result<File> {
+        for item in self.records() {
+            let serde::de::IgnoredAny = item?;
+        }
+
+        Ok(self.file)
+    }
 }
 
 impl<File> Document<File> {
-    pub fn records<'de, De>(&'de mut self) -> RecordIter<'de, BytesIter<&'de mut File>, De> {
+    pub fn records<'de, De>(&'de mut self) -> RecordIter<'de, BytesIter<'de, &'de mut File>, De> {
         RecordIter::new(
             &self.head,
-            BytesIter::new(&mut self.file, self.record_bytes, self.record_count),
+            BytesIter::new(&mut self.file, self.record_bytes, &mut self.record_count),
         )
     }
 }
