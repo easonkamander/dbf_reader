@@ -1,5 +1,6 @@
 mod de;
 mod error;
+mod map_clone;
 
-pub use de::{Document, from_file};
-pub use error::{Error, Result};
+pub use de::*;
+pub use error::*;

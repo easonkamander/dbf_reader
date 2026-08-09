@@ -1,21 +1,18 @@
-mod iter_lend;
-use iter_lend::IterLend;
-
-mod bytes_iter;
-use bytes_iter::BytesIter;
-
-mod record_iter;
-use record_iter::RecordIter;
-
-use super::Field;
+use super::Record;
 use crate::{Error, Result};
+use fallible_streaming_iterator::FallibleStreamingIterator;
+use serde::de;
 use std::io::Read;
 
+pub fn from_file<File: Read>(file: File) -> Result<Document<File>> {
+    Document::new(file)
+}
+
+/// A .dbf file as it is being streamed.
 pub struct Document<File> {
-    head: Vec<Field>,
+    record: Record,
+    count: usize,
     file: File,
-    record_bytes: usize,
-    record_count: usize,
 }
 
 impl<File: Read> Document<File> {
@@ -23,52 +20,61 @@ impl<File: Read> Document<File> {
         let mut header = [0; 32];
         file.read_exact(&mut header)?;
 
-        let record_count = u32::from_le_bytes(header[4..8].try_into().unwrap()) as usize;
-        let header_bytes = u16::from_le_bytes(header[8..10].try_into().unwrap()) as usize;
-        let record_bytes = u16::from_le_bytes(header[10..12].try_into().unwrap()) as usize;
-        let header_bytes = header_bytes.checked_sub(32).ok_or(Error::HeaderLength)?;
+        let count = u32::from_le_bytes(header[4..8].try_into().unwrap()) as usize;
+        let header_size = u16::from_le_bytes(header[8..10].try_into().unwrap()) as usize;
+        let record_size = u16::from_le_bytes(header[10..12].try_into().unwrap()) as usize;
+        let header_size = header_size.checked_sub(32).ok_or(Error::HeaderLength)?;
 
-        let mut header = vec![0; header_bytes];
+        let mut header = vec![0; header_size];
         file.read_exact(&mut header)?;
+        let record = Record::parse(header)?;
 
-        let chunks = header.chunks_exact(32);
-        let remain = chunks.remainder();
-        if remain != b"\x0D" {
-            return Err(Error::HeaderRemain(remain.to_vec()));
+        if record.buffer.len() == record_size {
+            Ok(Self {
+                record,
+                count,
+                file,
+            })
+        } else {
+            Err(Error::RecordLength(record.buffer.len(), record_size))
         }
-
-        let head = chunks.map(Field::new).collect::<Result<Vec<_>>>()?;
-        if head.iter().map(|f| f.size).sum::<usize>() + 1 != record_bytes {
-            let sizes = head.iter().map(|f| f.size).collect();
-            return Err(Error::RecordLength(sizes, record_bytes));
-        }
-
-        Ok(Self {
-            head,
-            file,
-            record_bytes,
-            record_count,
-        })
     }
 
-    pub fn finish(mut self) -> Result<File> {
-        for item in self.records() {
-            let serde::de::IgnoredAny = item?;
-        }
-
-        Ok(self.file)
+    pub fn as_iter<'a, 'de, D: de::Deserialize<'de>>(
+        &'a mut self,
+    ) -> impl Iterator<Item = Result<D>> {
+        use crate::map_clone::WithMapClone;
+        self.map_clone(|r| D::deserialize(r?))
     }
 }
 
-impl<File> Document<File> {
-    pub fn records<'de, De>(&'de mut self) -> RecordIter<'de, BytesIter<'de, &'de mut File>, De> {
-        RecordIter::new(
-            &self.head,
-            BytesIter::new(&mut self.file, self.record_bytes, &mut self.record_count),
-        )
-    }
-}
+impl<File: Read> FallibleStreamingIterator for Document<File> {
+    type Item = Record;
+    type Error = std::io::Error;
 
-pub fn from_file<File: Read>(file: File) -> Result<Document<File>> {
-    Document::new(file)
+    fn advance(&mut self) -> core::result::Result<(), std::io::Error> {
+        while let Some(count) = self.count.checked_sub(1) {
+            self.count = count;
+
+            self.file.read_exact(&mut self.record.buffer)?;
+
+            if self.record.alive() {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn get(&self) -> Option<&Self::Item> {
+        if self.record.alive() {
+            Some(&self.record)
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.count, Some(self.count))
+    }
 }

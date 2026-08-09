@@ -13,7 +13,7 @@ use serde::Deserialize;
 use chrono::NaiveDate;
 
 #[derive(Deserialize)]
-struct Record {
+struct MyRecord {
     my_field_1: f32,
     my_field_2: String,
     my_field_3: NaiveDate,
@@ -22,8 +22,8 @@ struct Record {
 fn iterate<R: std::io::Read>(file: R) -> dbf_reader::Result<()> {
     let mut document = dbf_reader::from_file(file)?;
 
-    for record in document.records() {
-        let record: Record = record?;
+    for record in document.as_iter() {
+        let record: MyRecord = record?;
         // process a record
     }
 
