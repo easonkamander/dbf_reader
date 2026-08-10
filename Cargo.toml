@@ -1,6 +1,6 @@
 [package]
 name = "dbf_reader"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 
 authors = ["Eason Kamander <eason@kamander.com>"]

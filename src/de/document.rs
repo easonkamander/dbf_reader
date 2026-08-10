@@ -40,9 +40,7 @@ impl<File: Read> Document<File> {
         }
     }
 
-    pub fn as_iter<'a, 'de, D: de::Deserialize<'de>>(
-        &'a mut self,
-    ) -> impl Iterator<Item = Result<D>> {
+    pub fn as_iter<'de, D: de::Deserialize<'de>>(&mut self) -> impl Iterator<Item = Result<D>> {
         use crate::map_clone::WithMapClone;
         self.map_clone(|r| D::deserialize(r?))
     }
@@ -53,14 +51,11 @@ impl<File: Read> FallibleStreamingIterator for Document<File> {
     type Error = std::io::Error;
 
     fn advance(&mut self) -> core::result::Result<(), std::io::Error> {
-        while let Some(count) = self.count.checked_sub(1) {
-            self.count = count;
+        self.record.buffer[0] = 0;
 
+        while self.count > 0 && !self.record.alive() {
             self.file.read_exact(&mut self.record.buffer)?;
-
-            if self.record.alive() {
-                break;
-            }
+            self.count -= 1;
         }
 
         Ok(())
